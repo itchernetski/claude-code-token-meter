@@ -42,7 +42,7 @@ pipx install claude-code-token-meter
 Or from source:
 
 ```bash
-git clone https://github.com/itregdisrapp/claude-code-token-meter.git
+git clone https://github.com/itchernetski/claude-code-token-meter.git
 cd claude-code-token-meter
 python -m venv .venv
 source .venv/bin/activate
