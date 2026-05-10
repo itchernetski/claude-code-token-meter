@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CC Token Meter</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%91%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+<pre class="header">┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│    ██████╗ ██████╗    ████████╗ ██████╗ ██╗  ██╗███████╗███╗   ██╗    ███╗   ███╗███████╗████████╗███████╗██████╗    │
+│   ██╔════╝██╔════╝    ╚══██╔══╝██╔═══██╗██║ ██╔╝██╔════╝████╗  ██║    ████╗ ████║██╔════╝╚══██╔══╝██╔════╝██╔══██╗   │
+│   ██║     ██║            ██║   ██║   ██║█████╔╝ █████╗  ██╔██╗ ██║    ██╔████╔██║█████╗     ██║   █████╗  ██████╔╝   │
+│   ██║     ██║            ██║   ██║   ██║██╔═██╗ ██╔══╝  ██║╚██╗██║    ██║╚██╔╝██║██╔══╝     ██║   ██╔══╝  ██╔══██╗   │
+│   ╚██████╗╚██████╗       ██║   ╚██████╔╝██║  ██╗███████╗██║ ╚████║    ██║ ╚═╝ ██║███████╗   ██║   ███████╗██║  ██║   │
+│    ╚═════╝ ╚═════╝       ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝    ╚═╝     ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   │
+│                                                                                                                      │
+│   cc token meter v{{ info.version }}                                                                                 │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘</pre>
+
+<div class="controls">
+  <label data-i18n="range_label">RANGE:</label>
+  <button data-days="1">24h</button>
+  <button data-days="3">3d</button>
+  <button data-days="7" class="active">7d</button>
+  <button data-days="14">14d</button>
+  <button data-days="30">30d</button>
+  <span class="spacer"></span>
+  <button id="refresh-btn" data-i18n="refresh_btn">↻ refresh</button>
+  <span class="meta" id="meta-info"></span>
+</div>
+
+<div class="controls quota-controls">
+  <label data-i18n="quota_label">QUOTA:</label>
+
+  <div class="quota-field">
+    <span class="quota-field-label" data-i18n="quota_5h_field_label">5h % from /usage</span>
+    <input id="quota-5h-pct" type="number" min="0.1" max="100" step="0.1"
+           data-i18n-placeholder="quota_5h_pct_placeholder"
+           data-i18n-tip="quota_5h_pct_title">
+    <span class="quota-preview" id="quota-5h-preview"></span>
+  </div>
+
+  <div class="quota-field">
+    <span class="quota-field-label" data-i18n="quota_weekly_field_label">weekly % from /usage</span>
+    <input id="quota-weekly-pct" type="number" min="0.1" max="100" step="0.1"
+           data-i18n-placeholder="quota_weekly_pct_placeholder"
+           data-i18n-tip="quota_weekly_pct_title">
+    <span class="quota-preview" id="quota-weekly-preview"></span>
+  </div>
+
+  <button id="quota-save"
+          data-i18n="quota_calibrate_btn"
+          data-i18n-tip="quota_calibrate_title">calibrate</button>
+  <button id="quota-clear"
+          data-i18n="quota_clear_btn"
+          data-i18n-tip="quota_clear_title">clear</button>
+  <span id="quota-status" class="quota-status" aria-live="polite"></span>
+
+  <span class="spacer"></span>
+
+  <label data-i18n="theme_label">THEME:</label>
+  <div class="toggle-group" id="theme-toggle">
+    <button data-theme="dark" data-i18n="theme_dark">🌙</button>
+    <button data-theme="light" data-i18n="theme_light">☀</button>
+  </div>
+
+  <label data-i18n="lang_label" style="margin-left:8px">LANG:</label>
+  <div class="toggle-group" id="lang-toggle">
+    <button data-lang="en">EN</button>
+    <button data-lang="ru">RU</button>
+  </div>
+</div>
+
+<div class="quota-help" data-i18n="quota_help"></div>
+<div class="quota-saved-info" id="quota-saved-info"></div>
+
+<details class="legend">
+  <summary data-i18n="legend_summary">что значат показатели?</summary>
+  <dl>
+    <dt data-i18n="legend_sessions_dt">sessions tracked</dt>
+    <dd data-i18n="legend_sessions_dd"></dd>
+    <dt data-i18n="legend_raw_dt">raw tokens</dt>
+    <dd>
+      <span data-i18n="legend_raw_dd_prefix"></span>
+      <code>input + output + cache_read + cache_create</code><span data-i18n="legend_raw_dd_suffix"></span>
+    </dd>
+    <dt data-i18n="legend_weighted_dt">weighted (cost proxy)</dt>
+    <dd>
+      <span data-i18n="legend_weighted_dd_prefix"></span>
+      <code>input×1 + output×5 + cache_create×1.25 + cache_read×0.1</code><span data-i18n="legend_weighted_dd_suffix"></span>
+    </dd>
+    <dt data-i18n="legend_projects_dt">projects</dt>
+    <dd data-i18n="legend_projects_dd"></dd>
+    <dt data-i18n="legend_input_dt">input</dt>
+    <dd data-i18n="legend_input_dd"></dd>
+    <dt data-i18n="legend_output_dt">output</dt>
+    <dd data-i18n="legend_output_dd"></dd>
+    <dt data-i18n="legend_cache_read_dt">cache_read</dt>
+    <dd data-i18n="legend_cache_read_dd"></dd>
+    <dt data-i18n="legend_cache_create_dt">cache_create</dt>
+    <dd data-i18n="legend_cache_create_dd"></dd>
+    <dt data-i18n="legend_msgs_dt">msgs</dt>
+    <dd data-i18n="legend_msgs_dd"></dd>
+    <dt data-i18n="legend_sm_dt">s= / m=</dt>
+    <dd data-i18n="legend_sm_dd"></dd>
+    <dt data-i18n="legend_title_dt">title</dt>
+    <dd data-i18n="legend_title_dd"></dd>
+    <dt data-i18n="legend_pct_dt">%</dt>
+    <dd data-i18n="legend_pct_dd"></dd>
+    <dt data-i18n="legend_burn_dt">burn rate</dt>
+    <dd data-i18n="legend_burn_dd"></dd>
+  </dl>
+</details>
+
+<div id="summary" class="stats"></div>
+<div id="totals" class="dim" style="margin-bottom:8px"></div>
+
+<h2 data-i18n="h2_daily" data-i18n-tip="h2_daily_title">daily --by weighted</h2>
+<div id="daily"></div>
+
+<h2 data-i18n="h2_projects" data-i18n-tip="h2_projects_title">projects --sort weighted</h2>
+<div id="projects"></div>
+
+<h2 data-i18n="h2_models" data-i18n-tip="h2_models_title">models --share</h2>
+<div id="models"></div>
+
+<h2 data-i18n="h2_burnrate" data-i18n-tip="h2_burnrate_title">burn rate --rolling</h2>
+<div id="burn-rate"></div>
+
+<h2 data-i18n="h2_top" data-i18n-tip="h2_top_title">top sessions --by weighted --limit 30</h2>
+<div class="head-row">
+  <span data-i18n="head_rank" data-i18n-tip="head_rank_title">#</span>
+  <span data-i18n="head_date" data-i18n-tip="head_date_title">date</span>
+  <span data-i18n="head_project" data-i18n-tip="head_project_title">project</span>
+  <span data-i18n="head_msgs" data-i18n-tip="head_msgs_title">msgs</span>
+  <span data-i18n="head_weight" data-i18n-tip="head_weight_title">weight</span>
+  <span data-i18n="head_relative" data-i18n-tip="head_relative_title">relative</span>
+  <span data-i18n="head_title" data-i18n-tip="head_title_title">title</span>
+</div>
+<div id="top-sessions"></div>
+<div id="other-sessions" class="other-line"></div>
+
+<div class="footnote">
+  <span data-i18n="footnote_formula"></span><br>
+  <span data-i18n="footnote_data"></span>
+</div>
+
+</div>
+<script src="/static/i18n.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

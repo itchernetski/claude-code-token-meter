@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.DS_Store
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local working notes — not for the public repo
+workspace/
+
+# Local SQLite for limit calibration (Phase 1, see workspace/ROADMAP.md)
+*.db
+*.db-journal

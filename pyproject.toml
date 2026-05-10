@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-code-token-meter"
+version = "0.3.0"
+description = "Local-first viewer for Claude Code token usage. Parses ~/.claude/projects/*.jsonl and serves an interactive dashboard on localhost."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Ilya Chernetskiy" }]
+keywords = ["claude-code", "tokens", "analytics", "dashboard"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+claude-code-token-meter = "claude_code_token_meter.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/itregdisrapp/claude-code-token-meter"
+Repository = "https://github.com/itregdisrapp/claude-code-token-meter"
+Issues = "https://github.com/itregdisrapp/claude-code-token-meter/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+claude_code_token_meter = ["templates/*.html", "static/*"]
