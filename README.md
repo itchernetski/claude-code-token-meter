@@ -21,6 +21,11 @@ This tool parses them, aggregates per session, and exposes:
 - **Top 30 sessions** — biggest individual sessions, with the rest collapsed
   into a single "other sessions beyond top 30" line
 - **Date filter** — 24h / 3d / 7d / 14d / 30d, switched without page reload
+- **Burn rate** — rolling 5h / 24h / 7d weighted totals + 24h hourly sparkline
+- **Quota calibration** — anchor the dashboard to your plan via the `/usage` %
+  you see in Claude Code (see below); also auto-calibrates from clustered
+  rate-limit hits stored locally
+- **Theme + lang** — light / dark, EN / RU, persisted in localStorage
 
 The "weighted" number uses Anthropic's published cost ratios as a proxy:
 
@@ -76,18 +81,61 @@ The first request triggers a one-time parse of all JSONL files (~5–15 s for
 hundreds of sessions). Results are cached in memory; click **↻ refresh** in the
 UI to re-scan after new sessions.
 
-## API
+## Calibrate against your plan
 
-The dashboard fetches a single JSON endpoint — useful if you want to script
-your own reports.
+Anthropic doesn't publish how the subscription quota maps to weighted tokens,
+so the dashboard offers two ways to anchor the bars.
 
-```bash
-curl http://127.0.0.1:3378/api/stats?days=7 | jq '.summary'
-curl http://127.0.0.1:3378/api/stats?start=2026-05-01&end=2026-05-08'
-curl -X POST http://127.0.0.1:3378/api/refresh    # re-parse from disk
+**Manual (`/usage`-based):** run `/usage` inside Claude Code, copy the two
+percentages it shows for the 5h and weekly windows, paste them into the
+**QUOTA** inputs at the top of the dashboard, and press **calibrate**. The tool
+reads your current burn (`weighted_5h`, `weighted_7d`) and reverse-computes the
+absolute caps:
+
+```
+cap = current_burn / (percent / 100)
 ```
 
-Response shape:
+The values are saved to `~/.config/claude-code-token-meter/config.json`. From
+then on, every progress bar shows `% used` against that anchor. Recalibrate
+any time the numbers drift (Anthropic adjusts limits periodically).
+
+**Empirical (rate-limit hits):** the parser also detects `5-hour limit reached`
+and `weekly limit reached` markers in the JSONL, clusters them, snapshots your
+burn at the moment of the hit, and stores the rows in `~/.claude/token-meter.db`
+(SQLite). After ≥3 hits the dashboard offers a calibration bar built from the
+median burn at hit time. This is automatic — nothing to configure.
+
+The two modes are independent: a manual quota always wins over the empirical
+estimate when both exist.
+
+## API
+
+The dashboard fetches a small set of JSON endpoints — useful if you want to
+script your own reports.
+
+```bash
+# Aggregated stats over a window
+curl 'http://127.0.0.1:3378/api/stats?days=7' | jq '.summary'
+curl 'http://127.0.0.1:3378/api/stats?start=2026-05-01&end=2026-05-08'
+
+# Override quota for one request (does not persist)
+curl 'http://127.0.0.1:3378/api/stats?quota_5h=80000000&quota_weekly=600000000'
+
+# Just the burn-rate windows + 24h sparkline
+curl 'http://127.0.0.1:3378/api/burnrate' | jq '.burn_rate'
+
+# Read or write the persisted quota anchors
+curl 'http://127.0.0.1:3378/api/config'
+curl -X POST 'http://127.0.0.1:3378/api/config' \
+  -H 'content-type: application/json' \
+  -d '{"quota_5h": 80000000, "quota_weekly": 600000000}'
+
+# Force a re-parse of the JSONL files
+curl -X POST 'http://127.0.0.1:3378/api/refresh'
+```
+
+Response shape of `/api/stats`:
 
 ```json
 {
@@ -97,10 +145,23 @@ Response shape:
   "models":   [ { "model": "...", "raw": ..., "share_pct": ... } ],
   "top_sessions":   [ { "session_id": "...", "title": "...", "date": "...", "project": "...", "msgs": ..., "weighted": ... } ],
   "other_sessions": { "count": ..., "weighted": ... },
-  "range": { "start": "...", "end": "...", "days": ... },
-  "meta":  { "projects_dir": "...", "sessions_total": ..., "loaded_at": "...", "parse_seconds": ..., "version": "..." }
+  "range":       { "start": "...", "end": "...", "days": ... },
+  "burn_rate":   { "now": "...", "last_5h": {...}, "last_24h": {...}, "last_7d": {...}, "hourly_24h": [...] },
+  "calibration": { "n": ..., "ready": ..., "p5h": ..., "p_weekly": ..., "spread_pct_5h": ... },
+  "quota":       { "quota_5h": ..., "quota_weekly": ... },
+  "meta":        { "projects_dir": "...", "sessions_total": ..., "loaded_at": "...", "parse_seconds": ..., "version": "..." }
 }
 ```
+
+## Files on disk
+
+Everything lives under your home directory — no global state, no cloud:
+
+| Path | Purpose |
+| --- | --- |
+| `~/.claude/projects/*/*.jsonl` | source data (Claude Code writes these) |
+| `~/.claude/token-meter.db` | SQLite cache of clustered rate-limit hits + burn-rate snapshots, used for empirical calibration |
+| `~/.config/claude-code-token-meter/config.json` | manual quota anchors set via the **calibrate** button |
 
 ## Auto-start at login (macOS, optional)
 
