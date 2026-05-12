@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-code-token-meter"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local-first viewer for Claude Code token usage. Parses ~/.claude/projects/*.jsonl and serves an interactive dashboard on localhost."
 readme = "README.md"
 requires-python = ">=3.10"

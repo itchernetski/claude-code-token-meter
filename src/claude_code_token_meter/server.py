@@ -18,6 +18,7 @@ from .aggregator import (
     burn_rate,
     calibrate_quota,
     filter_by_range,
+    filter_events_by_range,
     range_from_days,
     snapshot_at,
 )
@@ -29,6 +30,7 @@ from .parser import (
     default_projects_dir,
     parse_all_events_and_hits,
 )
+from .session_detail import analyze_session
 from .storage import default_db_path, load_recent, upsert_events
 
 PACKAGE_DIR = Path(__file__).parent
@@ -171,7 +173,8 @@ def create_app(
             start_dt, end_dt = range_from_days(days or 7)
 
         filtered = filter_by_range(cache.sessions, start_dt, end_dt)
-        stats = build_stats(filtered)
+        filtered_events = filter_events_by_range(cache.events, start_dt, end_dt)
+        stats = build_stats(filtered, filtered_events)
         stats["range"] = {
             "start": start_dt.isoformat(),
             "end": end_dt.isoformat(),
@@ -194,6 +197,24 @@ def create_app(
             "quota": _resolve_quota(quota_5h, quota_weekly),
             "meta": cache.info(),
         }
+
+    @app.get("/session/{session_id}", response_class=HTMLResponse)
+    def session_page(request: Request, session_id: str):
+        detail = analyze_session(cache.projects_dir, session_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        return TEMPLATES.TemplateResponse(
+            request,
+            "session.html",
+            {"detail": detail, "info": cache.info()},
+        )
+
+    @app.get("/api/session/{session_id}")
+    def api_session(session_id: str):
+        detail = analyze_session(cache.projects_dir, session_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        return detail
 
     @app.post("/api/refresh")
     def api_refresh():

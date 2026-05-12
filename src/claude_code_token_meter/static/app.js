@@ -60,6 +60,38 @@
     return "█".repeat(len) + "░".repeat(Math.max(0, width - len));
   }
 
+  function modelFamily(model) {
+    const m = (model || "").toLowerCase();
+    if (m.includes("opus")) return "opus";
+    if (m.includes("sonnet")) return "sonnet";
+    if (m.includes("haiku")) return "haiku";
+    return "other";
+  }
+
+  function stackedBar(byModel, totalWeighted, maxWeighted, fullWidth) {
+    const filledCols = maxWeighted > 0
+      ? Math.round((totalWeighted / maxWeighted) * fullWidth)
+      : 0;
+    if (!byModel || !byModel.length || filledCols === 0)
+      return "░".repeat(fullWidth);
+    let html = "";
+    let usedCols = 0;
+    for (let i = 0; i < byModel.length; i++) {
+      const m = byModel[i];
+      const remaining = filledCols - usedCols;
+      if (remaining <= 0) break;
+      const cols = i === byModel.length - 1
+        ? remaining
+        : Math.min(remaining, Math.round((m.weighted / totalWeighted) * filledCols));
+      if (cols > 0) {
+        html += `<span class="bar-seg bar-${modelFamily(m.model)}">${"█".repeat(cols)}</span>`;
+        usedCols += cols;
+      }
+    }
+    html += "░".repeat(fullWidth - filledCols);
+    return html;
+  }
+
   function quotaBarStr(pct, width) {
     const clamped = Math.min(100, Math.max(0, pct));
     const filled = Math.round((clamped / 100) * width);
@@ -121,17 +153,34 @@
       return;
     }
     const max = Math.max(...rows.map((r) => r.weighted));
-    $("#daily").innerHTML = rows
-      .map(
-        (r) => `
-        <div class="row-d">
+    const families = new Set();
+    rows.forEach((r) => (r.by_model || []).forEach((m) => families.add(modelFamily(m.model))));
+    const multiModel = families.size > 1;
+
+    const legendHtml = multiModel
+      ? `<div class="daily-legend">${[...families].map((f) =>
+          `<span class="bar-seg bar-${f}">█</span><span class="dim"> ${f}</span>`
+        ).join("  ")}</div>`
+      : "";
+
+    const rowsHtml = rows.map((r) => {
+      const tip = r.by_model && r.by_model.length
+        ? r.by_model.map((m) =>
+            `${m.model}: ${fmtNum(m.weighted)} (${((m.weighted / r.weighted) * 100).toFixed(1)}%)`
+          ).join("\n")
+        : "";
+      const barContent = multiModel && r.by_model && r.by_model.length
+        ? stackedBar(r.by_model, r.weighted, max, 40)
+        : bar(r.weighted, max, 40);
+      return `
+        <div class="row-d"${tip ? ` data-tip="${escapeHtml(tip)}"` : ""}>
           <span class="proj">${escapeHtml(fmtLocalDate(r.started_iso) || r.date)}</span>
-          <span class="bar">${bar(r.weighted, max, 40)}</span>
+          <span class="bar">${barContent}</span>
           <span class="num">${fmtNum(r.weighted)}</span>
-        </div>
-      `
-      )
-      .join("");
+        </div>`;
+    }).join("");
+
+    $("#daily").innerHTML = legendHtml + rowsHtml;
   }
 
   function renderProjects(rows) {
@@ -192,7 +241,11 @@
           <span class="msgs" data-tip="${escapeHtml(t("tt_msgs"))}">${r.msgs}</span>
           <span class="num" data-tip="${escapeHtml(t("tt_weighted"))}">${fmtNum(r.weighted)}</span>
           <span class="bar" data-tip="${escapeHtml(t("tt_relative"))}">${bar(r.weighted, max, 24)}</span>
-          <span class="title"${r.session_id ? ` data-tip="${escapeHtml(r.session_id)}"` : ""}>${escapeHtml(r.title)}</span>
+          ${
+            r.session_id
+              ? `<a class="title session-link" href="/session/${encodeURIComponent(r.session_id)}" data-tip="${escapeHtml(r.session_id)}">${escapeHtml(r.title)}</a>`
+              : `<span class="title">${escapeHtml(r.title)}</span>`
+          }
         </div>
       `
       )

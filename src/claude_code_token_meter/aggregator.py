@@ -55,17 +55,33 @@ def summary(sessions: Sequence[SessionAgg]) -> dict:
     }
 
 
-def by_day(sessions: Sequence[SessionAgg]) -> list[dict]:
-    buckets: dict[str, float] = defaultdict(float)
-    for s in sessions:
-        day = s.started_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
-        buckets[day] += s.weighted
+def filter_events_by_range(
+    events: Sequence[MessageEvent], start: datetime, end: datetime
+) -> list[MessageEvent]:
+    return [e for e in events if start <= e.timestamp < end]
+
+
+def by_day(events: Sequence[MessageEvent]) -> list[dict]:
+    day_buckets: dict[str, dict] = {}
+    for e in events:
+        day = e.timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        if day not in day_buckets:
+            day_buckets[day] = {"weighted": 0.0, "by_model": defaultdict(float)}
+        day_buckets[day]["weighted"] += e.weighted
+        day_buckets[day]["by_model"][e.model] += e.weighted
     rows = []
-    for day, w in sorted(buckets.items()):
+    for day in sorted(day_buckets):
+        b = day_buckets[day]
         # Noon UTC: anchors the bucket so toLocaleDateString resolves to the
         # same calendar day in any reasonable timezone (~ ±11h offset).
         started_iso = f"{day}T12:00:00+00:00"
-        rows.append({"date": day, "started_iso": started_iso, "weighted": w})
+        by_model_sorted = sorted(b["by_model"].items(), key=lambda kv: -kv[1])
+        rows.append({
+            "date": day,
+            "started_iso": started_iso,
+            "weighted": b["weighted"],
+            "by_model": [{"model": m, "weighted": w} for m, w in by_model_sorted],
+        })
     return rows
 
 
@@ -127,11 +143,14 @@ def top_sessions(
     return top_rows, len(others), sum(s.weighted for s in others)
 
 
-def build_stats(sessions: Sequence[SessionAgg]) -> dict:
+def build_stats(
+    sessions: Sequence[SessionAgg],
+    events: Sequence[MessageEvent] | None = None,
+) -> dict:
     top, other_count, other_weighted = top_sessions(sessions)
     return {
         "summary": summary(sessions),
-        "daily": by_day(sessions),
+        "daily": by_day(events if events is not None else []),
         "projects": by_project(sessions),
         "models": by_model(sessions),
         "top_sessions": top,
